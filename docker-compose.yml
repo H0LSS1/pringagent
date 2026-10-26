@@ -1,0 +1,50 @@
+name: printagent
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: printagent-mysql
+    # 3306 已被本机其他项目占用，映射到 3307
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: printagent
+      MYSQL_DATABASE: print_agent
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_general_ci
+      - --max_allowed_packet=256M
+    volumes:
+      - ./.volumes/mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-pprintagent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    mem_limit: 1g
+    restart: unless-stopped
+
+  # Milvus standalone：内嵌 etcd + 本地存储，无需外接 minio/etcd
+  milvus:
+    image: milvusdb/milvus:v2.5.6
+    container_name: printagent-milvus
+    command: ["milvus", "run", "standalone"]
+    environment:
+      ETCD_USE_EMBED: "true"
+      ETCD_DATA_DIR: /var/lib/milvus/etcd
+      ETCD_CONFIG_PATH: /milvus/configs/advanced/etcd.yaml
+      COMMON_STORAGETYPE: local
+    ports:
+      - "19530:19530"
+      - "9091:9091"
+    volumes:
+      - ./.volumes/milvus:/var/lib/milvus
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 30s
+      timeout: 20s
+      retries: 5
+      start_period: 90s
+    mem_limit: 4g
+    restart: unless-stopped

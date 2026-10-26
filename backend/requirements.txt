@@ -1,0 +1,38 @@
+# ===== Web 服务 =====
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.30
+pydantic>=2.7
+pydantic-settings>=2.3          # 读取 backend/.env
+httpx>=0.27                     # 评测脚本/健康检查调用
+
+# ===== LLM（OpenAI 兼容接口：DeepSeek / Qwen / GLM）=====
+openai>=1.40                    # 统一走 OpenAI 兼容 SDK，模型由 .env 的 LLM_MODEL 决定
+langchain-openai>=1.0           # ChatOpenAI 集成（OpenAI 兼容 BaseURL）
+
+# ===== Agent / LangGraph =====
+langgraph>=1.0
+langchain>=1.0
+langchain-core>=1.0             # LangChain 1.x 已精简，直接用 StateGraph 自建工作流
+
+# ===== RAG：Milvus + 混合检索 =====
+pymilvus>=2.4,<2.6              # Milvus standalone 客户端
+rank-bm25>=0.2.2                # BM25 关键词检索
+jieba>=0.42.1                   # 中文分词（BM25 分词器）
+# embedding 走 GLM embedding-3 API（openai SDK），不再本地加载模型
+
+# ===== Text2SQL 沙箱 =====
+sqlglot>=25.0                   # SQL 解析/只读校验/方言检查
+
+# ===== 数据库 =====
+sqlalchemy>=2.0
+pymysql>=1.1
+cryptography>=42.0              # MySQL 8 caching_sha2_password 认证需要
+
+# ===== 数据模拟与压力预测占位模型 =====
+numpy>=1.26,<3.0
+pandas>=2.1
+scikit-learn>=1.4               # 线性回归占位模型（后期真实模型替换）
+joblib>=1.3                     # pressure_model.pkl 持久化
+
+# ===== 开发与评测 =====
+pytest>=8.0

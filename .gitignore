@@ -1,0 +1,48 @@
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+*.pkl
+.vscode/
+
+# ===== 密钥与配置 =====
+backend/.env
+backend/.env.local
+backend/scripts/
+
+# ===== Node / 前端 =====
+node_modules/
+dist/
+dist-ssr/
+coverage/
+*.local
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ===== Docker 数据卷 =====
+.volumes/
+
+# ===== 日志与临时文件 =====
+*.log
+logs/
+tmp/
+.temp/
+
+# ===== 模型产物 =====
+backend/models/
+*.joblib
+
+# ===== IDE / 系统 =====
+.idea/
+.DS_Store
+Thumbs.db
+
+
+plan.md
