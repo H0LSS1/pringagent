@@ -18,6 +18,7 @@ langchain-core>=1.0             # LangChain 1.x 已精简，直接用 StateGraph
 pymilvus>=2.4,<2.6              # Milvus standalone 客户端
 rank-bm25>=0.2.2                # BM25 关键词检索
 jieba>=0.42.1                   # 中文分词（BM25 分词器）
+pypdf>=5.0                      # 知识库 PDF 文本提取
 # embedding 走 GLM embedding-3 API（openai SDK），不再本地加载模型
 
 # ===== Text2SQL 沙箱 =====
@@ -27,6 +28,9 @@ sqlglot>=25.0                   # SQL 解析/只读校验/方言检查
 sqlalchemy>=2.0
 pymysql>=1.1
 cryptography>=42.0              # MySQL 8 caching_sha2_password 认证需要
+
+# ===== 工业采集 =====
+pymodbus>=3.9,<3.10             # 固定 3.9.x：3.10+ 废弃经典 datastore，3.16 起读写不可用
 
 # ===== 数据模拟与压力预测占位模型 =====
 numpy>=1.26,<3.0

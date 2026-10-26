@@ -1,35 +1,49 @@
-name: printagent
+﻿# 一键部署编排：nginx(:8081) + 前端静态 + 后端 API + 模拟器 + 采集器 + MySQL + Milvus
+#
+# 用法（项目根目录）：
+#   docker compose -f docker-compose.prod.yml up -d --build
+# 部署完成后浏览器打开 http://localhost:8081
+#
+# 说明：
+# - mysql / milvus 服务定义与开发用 docker-compose.yml 一致（同名数据卷），
+#   若开发环境已起过，会直接复用容器与数据，不会丢库
+# - 对外只暴露 8081 一个端口，其余服务全部走 docker 内部网络
+# - 容器互联用服务名：backend/collector 通过 mysql / milvus / simulator 互访
+# - 注意端口语义：3307 只是"宿主机 -> 容器"的映射端口（开发时宿主机 venv 用）；
+#   容器之间走内部网络必须连 3306，所以这里统一用环境变量覆盖为 MYSQL_PORT=3306，
+#   否则 backend/.env 里的 3307 会泄漏进容器导致 Connection refused
 
 services:
+  # ============ 基础设施 ============
+
   mysql:
     image: mysql:8.0
     container_name: printagent-mysql
-    # 3306 已被本机其他项目占用，映射到 3307
-    ports:
-      - "3307:3306"
+    restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: printagent
       MYSQL_DATABASE: print_agent
       TZ: Asia/Shanghai
     command:
       - --character-set-server=utf8mb4
-      - --collation-server=utf8mb4_general_ci
-      - --max_allowed_packet=256M
+      - --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "3307:3306"
     volumes:
-      - ./.volumes/mysql:/var/lib/mysql
+      - mysql_data:/var/lib/mysql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-pprintagent"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-    mem_limit: 1g
-    restart: unless-stopped
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
-  # Milvus standalone：内嵌 etcd + 本地存储，无需外接 minio/etcd
   milvus:
     image: milvusdb/milvus:v2.5.6
     container_name: printagent-milvus
+    restart: unless-stopped
     command: ["milvus", "run", "standalone"]
+    security_opt:
+      - seccomp:unconfined
     environment:
       ETCD_USE_EMBED: "true"
       ETCD_DATA_DIR: /var/lib/milvus/etcd
@@ -39,12 +53,100 @@ services:
       - "19530:19530"
       - "9091:9091"
     volumes:
-      - ./.volumes/milvus:/var/lib/milvus
+      - milvus_data:/var/lib/milvus
+      - ./deploy/embedEtcd.yaml:/milvus/configs/advanced/etcd.yaml:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
-      interval: 30s
-      timeout: 20s
-      retries: 5
-      start_period: 90s
-    mem_limit: 4g
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  # ============ 应用 ============
+
+  # 一次性：建表 + 设备/机组/点位种子数据
+  initdb:
+    build: ./backend
+    container_name: printagent-initdb
+    restart: "no"
+    command: ["python", "-m", "db.init_db", "--groups", "10"]
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  # 后端 API：FastAPI（对外经 nginx 反代，自身不出网）
+  backend:
+    build: ./backend
+    container_name: printagent-backend
     restart: unless-stopped
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MILVUS_URI: http://milvus:19530
+      MODBUS_HOST: simulator
+      TZ: Asia/Shanghai
+    env_file:
+      - ./backend/.env
+    depends_on:
+      mysql:
+        condition: service_healthy
+      milvus:
+        condition: service_healthy
+      initdb:
+        condition: service_completed_successfully
+
+  # 模拟器：Modbus TCP PLC + 分光光度计（--host 0.0.0.0 供容器网络访问）
+  simulator:
+    build: ./backend
+    container_name: printagent-simulator
+    restart: unless-stopped
+    command: ["python", "-m", "simulator.modbus_server", "--groups", "10",
+              "--interval", "5", "--host", "0.0.0.0"]
+    environment:
+      TZ: Asia/Shanghai
+
+  # 采集服务：轮询模拟器 -> 批量入库 MySQL
+  collector:
+    build: ./backend
+    container_name: printagent-collector
+    restart: unless-stopped
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MODBUS_HOST: simulator
+      TZ: Asia/Shanghai
+    env_file:
+      - ./backend/.env
+    depends_on:
+      mysql:
+        condition: service_healthy
+      initdb:
+        condition: service_completed_successfully
+      simulator:
+        condition: service_started
+
+  # 前端：nginx 托管静态文件并反代 /api，宿主机 8081 -> 容器 80
+  frontend:
+    build: ./frontend
+    container_name: printagent-frontend
+    restart: unless-stopped
+    ports:
+      - "8081:80"
+    depends_on:
+      - backend
+
+volumes:
+  mysql_data:
+  milvus_data:
+
+# 独立固定子网：避开本机其它 compose 网络的网段冲突
+# （此前 printagent_default 的 IP 分配异常，容器拿不到 IP 导致连不上 MySQL）
+networks:
+  default:
+    name: printagent_net
+    ipam:
+      config:
+        - subnet: 172.28.100.0/24

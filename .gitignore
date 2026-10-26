@@ -8,26 +8,21 @@ __pycache__/
 .venv/
 venv/
 env/
-*.pkl
-.vscode/
+*.tmp
 
-# ===== 密钥与配置 =====
+# ===== 密钥与配置（切勿提交）=====
 backend/.env
 backend/.env.local
-backend/scripts/
+*.local
 
 # ===== Node / 前端 =====
 node_modules/
 dist/
 dist-ssr/
 coverage/
-*.local
 npm-debug.log*
 yarn-error.log*
 pnpm-debug.log*
-
-# ===== Docker 数据卷 =====
-.volumes/
 
 # ===== 日志与临时文件 =====
 *.log
@@ -35,14 +30,16 @@ logs/
 tmp/
 .temp/
 
-# ===== 模型产物 =====
-backend/models/
-*.joblib
-
 # ===== IDE / 系统 =====
+.vscode/
 .idea/
 .DS_Store
 Thumbs.db
 
+# ===== 模型产物说明 =====
+# pressure_model.pkl（线性回归，几 KB）是部署自愈依赖的文件，刻意保留在 Git 中；
+# 若未来换成大体积模型（RF/GBDT），再追加忽略并改用对象存储下发。
+
+backend/models/artfacts/
 
 plan.md
